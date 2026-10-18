@@ -1,0 +1,73 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RiskRoute AI</title><link rel="stylesheet" href="style.css?v=5"></head><body>
+<header>
+  <div class="brand"><span class="logo">◆</span><b id="appname">RiskRoute AI</b><small>Explainable payment-risk routing for banks</small></div>
+  <nav><button data-v="work" class="on">Workspace</button><button data-v="scale">Scale &amp; benchmark</button><button data-v="audit">Audit log</button><button data-v="how">How it works</button></nav>
+  <div class="hdr-r"><span class="demo">Demo · synthetic data</span><button id="reset" class="link">Reset demo</button></div>
+</header>
+
+<section id="v-work" class="view on">
+  <div class="kpis" id="kpis"></div>
+  <div class="work">
+    <aside>
+      <div class="feedbox">
+        <div class="row"><b>Live payment feed</b><span id="mode" class="tag"></span></div>
+        <div class="muted" id="feedtxt">Publish synthetic payments from ~200 customers. Tier 1 screens each one; only flagged payments go to the Gemini worker.</div>
+        <div class="btns"><button class="btn sm" data-n="25">Send 25 payments</button><button class="btn sm ghost" data-n="50">Send 50</button></div>
+        <div class="muted small" id="usage"></div>
+      </div>
+      <div class="row"><h2>Payments</h2><button id="procall" class="btn sm ghost">Screen demo cases</button></div>
+      <div class="chips" id="chips"></div>
+      <div id="cases"></div>
+      <button id="more" class="btn sm ghost hidden" style="width:100%">Load more</button>
+    </aside>
+    <div id="detail" class="panel"><div class="empty"><div class="big">◆</div>Select a payment to see how it is screened, investigated and routed.<br><small>Start with the demo cases <b>TXN-1045</b> (rules would block it) and <b>TXN-1044</b> (account-takeover pattern), then press <b>Send 25 payments</b>.</small></div></div>
+  </div>
+</section>
+
+<section id="v-scale" class="view">
+  <div class="grid2">
+    <div class="panel"><h2>Scale simulation (Tier 1, no AI)</h2>
+      <p class="muted">Runs the real Tier-1 code over synthetic traffic from ~200 generated customers and measures how fast it is and how few payments need Gemini or a person.</p>
+      <div class="form"><label>Payments <input id="sim-n" type="number" value="2000" min="100" max="10000"></label>
+        <label>Injected anomalies % <input id="sim-a" type="number" value="10" min="0" max="50"></label>
+        <button id="sim-run" class="btn">Run simulation</button></div>
+      <div id="sim-out"></div></div>
+    <div class="panel"><h2>Benchmark on labelled demo cases</h2>
+      <p class="muted">Static rules only vs RiskRoute on the 5 demo cases. Labels were set by our team; this is a demonstration, not an accuracy claim.</p>
+      <button id="bench-run" class="btn">Run benchmark</button><div id="bench-out"></div></div>
+  </div>
+</section>
+
+<section id="v-audit" class="view"><div class="panel">
+  <div class="row"><h2>Audit log <small>(latest 300 · “Needs attention” hides routine Tier-1 auto-clears)</small></h2>
+    <div class="row"><input id="audit-q" class="search" placeholder="Case ID, e.g. TXN-1044"><button id="audit-ref" class="btn sm ghost">Search / refresh</button><button id="audit-clr" class="btn sm ghost">Clear</button></div></div>
+  <div class="chips" id="audit-chips"></div><div id="audit-out"></div></div></section>
+
+<section id="v-how" class="view"><div class="panel how">
+  <h2>How RiskRoute works</h2>
+  <div class="tiers">
+    <div class="tier t1"><b>Tier 1 · every payment · milliseconds</b><p>Static bank rules (new payee, new device, contact change, high value) + the customer's <b>stored behaviour profile</b> (one read, updated incrementally on every released payment). No mandatory rule and normal behaviour → <b>auto-clear, no AI call</b>.</p></div>
+    <div class="arrow">→</div>
+    <div class="tier t2"><b>Tier 2 · flagged payments · async</b><p>Flagged payments are queued on <b>Pub/Sub</b>. A Gemini agent on Vertex AI calls tools for the transaction, payee, account activity and profile, then writes a structured investigation. A citation check removes claims citing records it never fetched.</p></div>
+    <div class="arrow">→</div>
+    <div class="tier t3"><b>Route</b><p><span class="pill PROCEED">Auto-clear</span> routine<br><span class="pill VERIFY">Customer verification</span> self-service, no staff<br><span class="pill HUMAN_REVIEW">Analyst review</span> strong takeover/scam signals only</p></div>
+  </div>
+  <h3>Event-driven architecture on Google Cloud</h3>
+  <div class="arch"><span>Payment events</span>→<span>Pub/Sub <i>payments-in</i></span>→<span>Cloud Run · Tier 1</span>→<span>Pub/Sub <i>flagged-payments</i></span>→<span>Cloud Run · Gemini worker</span>→<span>Firestore · cases, profiles, audit</span></div>
+  <ul><li>Idempotent: duplicate Pub/Sub deliveries are ignored; investigations are claimed with a Firestore transaction.</li>
+  <li>Back-pressure: limited parallel Gemini calls per instance; quota errors are retried by Pub/Sub with backoff, then fall back to rules-only routing.</li>
+  <li>Cost guard: daily caps on AI investigations and feed volume.</li></ul>
+  <h3>Guardrails</h3>
+  <ul><li>Mandatory rules set a <b>minimum</b> route. The AI can escalate but never go below it.</li>
+  <li>If the registered mobile changed recently, a customer confirmation is not trusted and goes to an analyst.</li>
+  <li>The AI recommends; it never moves money. Every action is written to the audit log. All data is synthetic.</li></ul>
+</div></section>
+
+<div id="modal" class="modal hidden"><div class="phone">
+  <div class="notch"></div><div class="ph-top">Your Bank · Security check</div>
+  <div class="ph-body" id="ph-body"></div>
+  <div class="ph-act"><button class="btn ok" id="ph-yes">Yes, this was me</button><button class="btn bad" id="ph-no">No, I don't recognise it</button></div>
+  <button class="link" id="ph-close">Close</button></div></div>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js?v=5"></script></body></html>

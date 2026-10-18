@@ -1,0 +1,1 @@
+{"hosting":{"public":"public","rewrites":[{"source":"**","run":{"serviceId":"riskroute","region":"asia-south1"}}]}}
